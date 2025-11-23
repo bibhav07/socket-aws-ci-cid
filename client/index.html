@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WebSocket Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #22d3ee;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg, #0b1220, #0f172a);
+      color: var(--text);
+      display: flex; min-height: 100vh; align-items: center; justify-content: center;
+    }
+    .app {
+      width: 100%; max-width: 1100px; display: grid; grid-template-columns: 280px 1fr;
+      gap: 16px; padding: 20px;
+    }
+    .panel {
+      background: var(--panel); border: 1px solid #1f2937; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+    .header {
+      padding: 14px 16px; border-bottom: 1px solid #1f2937; display: flex; align-items: center; justify-content: space-between;
+    }
+    .title { font-weight: 600; letter-spacing: 0.3px; }
+    .status { font-size: 12px; color: var(--muted); }
+    .login {
+      padding: 16px; display: grid; gap: 8px; border-bottom: 1px solid #1f2937;
+    }
+    input, button, select, textarea {
+      background: #0b1220; color: var(--text); border: 1px solid #1f2937; border-radius: 10px; padding: 10px 12px; outline: none;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    button {
+      background: linear-gradient(180deg, #0ea5e9, #06b6d4);
+      border: none; color: #042f2e; font-weight: 600; cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .users { padding: 8px; max-height: 60vh; overflow: auto; }
+    .user {
+      display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin: 6px; border-radius: 8px; background: #0b1220; cursor: pointer;
+    }
+    .user.active { outline: 2px solid var(--accent); }
+    .badge { font-size: 12px; color: var(--muted); }
+    .chat {
+      display: grid; grid-template-rows: auto 1fr auto;
+    }
+    .messages {
+      padding: 12px; overflow: auto; max-height: 60vh;
+      display: grid; gap: 8px;
+    }
+    .msg {
+      padding: 10px 12px; border-radius: 10px; max-width: 70%;
+    }
+    .msg.me { background: #0ea5e9; color: #042f2e; margin-left: auto; }
+    .msg.other { background: #111827; border: 1px solid #1f2937; }
+    .composer { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border-top: 1px solid #1f2937; }
+    .error { color: var(--danger); font-size: 12px; padding: 6px 12px; }
+    .empty { color: var(--muted); padding: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <div class="header">
+        <div class="title">Online users</div>
+        <div class="status" id="connStatus">Disconnected</div>
+      </div>
+      <div class="login">
+        <div style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
+          <input id="username" placeholder="Choose a username (3-24 chars)" />
+          <button id="loginBtn">Login</button>
+        </div>
+        <div class="error" id="loginError"></div>
+      </div>
+      <div class="users" id="usersList"></div>
+    </div>
+
+    <div class="panel chat">
+      <div class="header">
+        <div class="title" id="chatWith">No chat selected</div>
+        <div class="status" id="selfName">Guest</div>
+      </div>
+      <div class="messages" id="messages">
+        <div class="empty">Select a user to start chatting.</div>
+      </div>
+      <div class="composer">
+        <textarea id="msgInput" rows="2" placeholder="Type a message..." disabled></textarea>
+        <button id="sendBtn" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+
+ <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const state = {
+      socket: null,
+      username: null,
+      onlineUsers: [],
+      activeChatWith: null,
+      conversations: {} // { username: [{ from, to, text, ts }] }
+    };
+
+    const el = {
+      connStatus: document.getElementById("connStatus"),
+      username: document.getElementById("username"),
+      loginBtn: document.getElementById("loginBtn"),
+      loginError: document.getElementById("loginError"),
+      usersList: document.getElementById("usersList"),
+      chatWith: document.getElementById("chatWith"),
+      selfName: document.getElementById("selfName"),
+      messages: document.getElementById("messages"),
+      msgInput: document.getElementById("msgInput"),
+      sendBtn: document.getElementById("sendBtn")
+    };
+
+    // Connect
+    function connect() {
+      const url =  "http://65.2.149.237:3000/" 
+      state.socket = io(url, { transports: ["websocket"] });
+
+      state.socket.on("connect", () => {
+        el.connStatus.textContent = "Connected";
+        el.connStatus.style.color = "#22d3ee";
+      });
+
+      state.socket.on("disconnect", () => {
+        el.connStatus.textContent = "Disconnected";
+        el.connStatus.style.color = "#ef4444";
+      });
+
+      // Presence updates
+      state.socket.on("user:list", (users) => {
+        state.onlineUsers = users.filter(u => u !== state.username);
+        renderUsers();
+      });
+
+      // Incoming message
+      state.socket.on("msg:receive", (msg) => {
+        addMessage(msg.to, msg.from, msg.text, msg.ts);
+        if (state.activeChatWith === msg.from) {
+          renderMessages(msg.from);
+        } else {
+          // highlight sender in list
+          highlightUser(msg.from);
+        }
+      });
+
+      // Echo sent
+      state.socket.on("msg:sent", (msg) => {
+        addMessage(msg.from, msg.to, msg.text, msg.ts);
+        if (state.activeChatWith === msg.to) {
+          renderMessages(msg.to);
+        }
+      });
+    }
+
+    // Login action
+    el.loginBtn.addEventListener("click", async () => {
+      const uname = (el.username.value || "").trim();
+      el.loginError.textContent = "";
+      if (!uname) {
+        el.loginError.textContent = "Please enter a username.";
+        return;
+      }
+      if (!state.socket || !state.socket.connected) {
+        el.loginError.textContent = "Not connected to server.";
+        return;
+      }
+      state.socket.emit("user:login", uname, (ack) => {
+        if (!ack?.ok) {
+          el.loginError.textContent = ack?.error || "Login failed.";
+          return;
+        }
+        state.username = ack.username;
+        state.onlineUsers = (ack.users || []).filter(u => u !== state.username);
+        el.selfName.textContent = state.username;
+        el.msgInput.disabled = false;
+        el.sendBtn.disabled = false;
+        renderUsers();
+      });
+    });
+
+    // Send message
+    el.sendBtn.addEventListener("click", () => sendMessage());
+    el.msgInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function sendMessage() {
+      const to = state.activeChatWith;
+      const text = (el.msgInput.value || "").trim();
+      if (!to) return;
+      if (!text) return;
+
+      state.socket.emit("msg:send", { to, text }, (ack) => {
+        if (!ack?.ok) {
+          const err = document.createElement("div");
+          err.className = "error";
+          err.textContent = ack.error || "Failed to send.";
+          el.messages.prepend(err);
+          setTimeout(() => err.remove(), 2000);
+        }
+      });
+      el.msgInput.value = "";
+    }
+
+    // Presence UI
+    function renderUsers() {
+      el.usersList.innerHTML = "";
+      if (!state.onlineUsers.length) {
+        const div = document.createElement("div");
+        div.className = "empty";
+        div.textContent = "No other users online.";
+        el.usersList.appendChild(div);
+        return;
+      }
+      state.onlineUsers.forEach(u => {
+        const row = document.createElement("div");
+        row.className = "user" + (u === state.activeChatWith ? " active" : "");
+        row.innerHTML = `<div>${u}</div><div class="badge">online</div>`;
+        row.addEventListener("click", () => {
+          state.activeChatWith = u;
+          el.chatWith.textContent = `Chat with ${u}`;
+          highlightUser(u);
+          renderMessages(u);
+        });
+        el.usersList.appendChild(row);
+      });
+    }
+
+    function highlightUser(username) {
+      const nodes = el.usersList.querySelectorAll(".user");
+      nodes.forEach(n => {
+        const name = n.firstChild?.textContent;
+        if (name === username) {
+          n.classList.add("active");
+        } else {
+          n.classList.remove("active");
+        }
+      });
+    }
+
+    // Conversation state
+    function addMessage(from, to, text, ts) {
+      const peer = (from === state.username) ? to : from;
+      if (!state.conversations[peer]) state.conversations[peer] = [];
+      state.conversations[peer].push({ from, to, text, ts });
+    }
+
+    function renderMessages(peer) {
+      el.messages.innerHTML = "";
+      const msgs = state.conversations[peer] || [];
+      if (!msgs.length) {
+        const div = document.createElement("div");
+        div.className = "empty";
+        div.textContent = "Say hi 👋";
+        el.messages.appendChild(div);
+        return;
+      }
+      msgs.sort((a,b) => a.ts - b.ts);
+      msgs.forEach(m => {
+        const bubble = document.createElement("div");
+        bubble.className = "msg " + (m.from === state.username ? "me" : "other");
+        bubble.innerHTML = `<div>${escapeHtml(m.text)}</div>`;
+        el.messages.appendChild(bubble);
+      });
+      el.messages.scrollTop = el.messages.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
+    }
+
+    connect();
+  </script>
+</body>
+</html>
