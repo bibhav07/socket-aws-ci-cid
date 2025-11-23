@@ -15,57 +15,139 @@
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
       background: linear-gradient(180deg, #0b1220, #0f172a);
       color: var(--text);
-      display: flex; min-height: 100vh; align-items: center; justify-content: center;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
     }
     .app {
-      width: 100%; max-width: 1100px; display: grid; grid-template-columns: 280px 1fr;
-      gap: 16px; padding: 20px;
+      width: 100%;
+      max-width: 1100px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 16px;
+      padding: 20px;
     }
     .panel {
-      background: var(--panel); border: 1px solid #1f2937; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      background: var(--panel);
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .header {
-      padding: 14px 16px; border-bottom: 1px solid #1f2937; display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
     .title { font-weight: 600; letter-spacing: 0.3px; }
     .status { font-size: 12px; color: var(--muted); }
     .login {
-      padding: 16px; display: grid; gap: 8px; border-bottom: 1px solid #1f2937;
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+      border-bottom: 1px solid #1f2937;
     }
-    input, button, select, textarea {
-      background: #0b1220; color: var(--text); border: 1px solid #1f2937; border-radius: 10px; padding: 10px 12px; outline: none;
+    input, button, textarea {
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid #1f2937;
+      border-radius: 10px;
+      padding: 10px 12px;
+      outline: none;
+      font-size: 16px;
     }
     input:focus, textarea:focus { border-color: var(--accent); }
     button {
       background: linear-gradient(180deg, #0ea5e9, #06b6d4);
-      border: none; color: #042f2e; font-weight: 600; cursor: pointer;
+      border: none;
+      color: #042f2e;
+      font-weight: 600;
+      cursor: pointer;
     }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .users { padding: 8px; max-height: 60vh; overflow: auto; }
+    .users {
+      padding: 8px;
+      flex: 1;
+      overflow-y: auto;
+    }
     .user {
-      display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin: 6px; border-radius: 8px; background: #0b1220; cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      margin: 6px;
+      border-radius: 8px;
+      background: #0b1220;
+      cursor: pointer;
     }
     .user.active { outline: 2px solid var(--accent); }
     .badge { font-size: 12px; color: var(--muted); }
     .chat {
-      display: grid; grid-template-rows: auto 1fr auto;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      flex: 1;
     }
     .messages {
-      padding: 12px; overflow: auto; max-height: 60vh;
-      display: grid; gap: 8px;
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .msg {
-      padding: 10px 12px; border-radius: 10px; max-width: 70%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      max-width: 70%;
+      word-wrap: break-word;
     }
     .msg.me { background: #0ea5e9; color: #042f2e; margin-left: auto; }
     .msg.other { background: #111827; border: 1px solid #1f2937; }
-    .composer { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border-top: 1px solid #1f2937; }
+    .composer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid #1f2937;
+    }
     .error { color: var(--danger); font-size: 12px; padding: 6px 12px; }
-    .empty { color: var(--muted); padding: 12px; }
+    .empty { color: var(--muted); padding: 12px; text-align: center; }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      body {
+        align-items: stretch;
+        justify-content: stretch;
+      }
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        padding: 10px;
+      }
+      .panel {
+        margin-bottom: 12px;
+      }
+      .login > div {
+        grid-template-columns: 1fr;
+      }
+      input, button, textarea {
+        font-size: 14px;
+      }
+      .messages {
+        max-height: 40vh;
+      }
+      .composer textarea {
+        font-size: 14px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -100,7 +182,7 @@
     </div>
   </div>
 
- <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script>
     const state = {
       socket: null,
@@ -125,7 +207,10 @@
 
     // Connect
     function connect() {
-      const url =  "http://65.2.149.237:3000/" 
+       const hostname = window.location.hostname;
+
+      // Construct URL with port 3000
+      const url = `http://${hostname}:3000/`;
       state.socket = io(url, { transports: ["websocket"] });
 
       state.socket.on("connect", () => {
