@@ -21,7 +21,7 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-    res.json({status : "healthy", message: "App is healthy..."})
+    res.json({status : "healthy", message: "App is running fine.."})
 });
 
 const httpServer = http.createServer(app);
